@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="description" content="斌选 - 好菜，斌选。宴席套餐管理专家">
+    <meta name="theme-color" content="#C45C48">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="斌选">
+    <title>斌选</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/logo.png">
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- 本地化资源（原CDN已下载到本地） -->
+    <link rel="stylesheet" href="lib/material-icons.css">
+    <link rel="stylesheet" href="lib/noto-sans-sc.css">
+    <script src="lib/compressor.min.js"></script>
+    <script src="lib/html2canvas.min.js"></script>
+    <!-- Capacitor 桥接脚本（打包后生效，浏览器中自动降级） -->
+    <script type="module">
+        const isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+
+        // ==================== 震动反馈 ====================
+        window.NativeHaptics = {
+            async light() {
+                if (!isNative) return;
+                try {
+                    const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
+                    await Haptics.impact({ style: ImpactStyle.Light });
+                } catch(e) {}
+            },
+            async medium() {
+                if (!isNative) return;
+                try {
+                    const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
+                    await Haptics.impact({ style: ImpactStyle.Medium });
+                } catch(e) {}
+            },
+            async heavy() {
+                if (!isNative) return;
+                try {
+                    const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
+                    await Haptics.impact({ style: ImpactStyle.Heavy });
+                } catch(e) {}
+            },
+            async success() {
+                if (!isNative) return;
+                try {
+                    const { Haptics, NotificationType } = await import('@capacitor/haptics');
+                    await Haptics.notification({ type: NotificationType.Success });
+                } catch(e) {}
+            }
+        };
+
+        // ==================== 屏幕常亮 ====================
+        window.NativeKeepAwake = {
+            async enable() {
+                if (!isNative) return;
+                try {
+                    // 使用 Android 原生 WakeLock
+                    const { App } = await import('@capacitor/app');
+                    if (window.androidKeepAwake) window.androidKeepAwake.setKeepScreenOn(true);
+                } catch(e) {}
+            },
+            async disable() {
+                if (!isNative) return;
+                try {
+                    if (window.androidKeepAwake) window.androidKeepAwake.setKeepScreenOn(false);
+                } catch(e) {}
+            }
+        };
+
+        // ==================== 网络检测 ====================
+        window.NativeNetwork = {
+            _listeners: [],
+            async getStatus() {
+                if (!isNative) return { connected: true, connectionType: 'unknown' };
+                try {
+                    const { Network } = await import('@capacitor/network');
+                    return await Network.getStatus();
+                } catch(e) { return { connected: true, connectionType: 'unknown' }; }
+            },
+            async startListening() {
+                if (!isNative) return;
+                try {
+                    const { Network } = await import('@capacitor/network');
+                    await Network.addListener('networkStatusChange', (status) => {
+                        this._listeners.forEach(fn => fn(status));
+                        // 显示/隐藏离线横幅
+                        const banner = document.getElementById('offlineBanner');
+                        if (banner) {
+                            banner.style.display = status.connected ? 'none' : 'flex';
+                        }
+                    });
+                } catch(e) {}
+            },
+            onChange(fn) { this._listeners.push(fn); }
+        };
+
+        // ==================== 全屏沉浸 ====================
+        window.NativeFullscreen = {
+            async enable() {
+                if (!isNative) return;
+                try {
+                    const { StatusBar, Style } = await import('@capacitor/status-bar');
+                    // 先设置透明背景，再隐藏状态栏
+                    await StatusBar.setBackgroundColor({ color: '#00000000' });
+                    await StatusBar.setStyle({ style: Style.Dark });
+                    await StatusBar.setOverlaysWebView({ overlay: true });
+                    await StatusBar.hide();
+                    // 设置安全区域内边距
+                    document.documentElement.style.setProperty('--safe-area-top', 'env(safe-area-inset-top)');
+                    document.body.style.paddingTop = '0';
+                } catch(e) { console.warn('全屏沉浸失败:', e); }
+            },
+            async disable() {
+                if (!isNative) return;
+                try {
+                    const { StatusBar, Style } = await import('@capacitor/status-bar');
+                    await StatusBar.setOverlaysWebView({ overlay: false });
+                    await StatusBar.setBackgroundColor({ color: '#C45C48' });
+                    await StatusBar.setStyle({ style: Style.Light });
+                    await StatusBar.show();
+                } catch(e) {}
+            }
+        };
+
+        // ==================== 相机直拍（仅原生环境）====================
+        if (isNative) {
+            window.NativeCamera = {
+                async takePhoto() {
+                    try {
+                        const { Camera, CameraResultType, CameraSource, CameraDirection } = await import('@capacitor/camera');
+                        const photo = await Camera.getPhoto({
+                            quality: 80,
+                            resultType: CameraResultType.Base64,
+                            source: CameraSource.Camera,
+                            direction: CameraDirection.Rear,
+                            width: 800,
+                            height: 600,
+                            correctOrientation: true,
+                            saveToGallery: false,
+                            presentationStyle: 'fullscreen'
+                        });
+                        if (!photo || !photo.base64String) {
+                            console.warn('相机返回空数据');
+                            return null;
+                        }
+                        return 'data:image/jpeg;base64,' + photo.base64String;
+                    } catch(e) {
+                        console.warn('相机调用失败:', e);
+                        alert('相机调用失败: ' + e.message);
+                        return null;
+                    }
+                },
+                async pickFromGallery() {
+                    try {
+                        const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+                        const photo = await Camera.getPhoto({
+                            quality: 80,
+                            resultType: CameraResultType.Base64,
+                            source: CameraSource.Photos,
+                            width: 800,
+                            height: 600,
+                            correctOrientation: true,
+                            saveToGallery: false,
+                            presentationStyle: 'fullscreen'
+                        });
+                        if (!photo || !photo.base64String) {
+                            console.warn('相册返回空数据');
+                            return null;
+                        }
+                        return 'data:image/jpeg;base64,' + photo.base64String;
+                    } catch(e) {
+                        console.warn('相册调用失败:', e);
+                        alert('相册调用失败: ' + e.message);
+                        return null;
+                    }
+                }
+            };
+        }
+
+        // ==================== 初始化 ====================
+        if (isNative) {
+            // 返回键
+            const { App } = await import('@capacitor/app');
+            App.addListener('backButton', ({ canGoBack }) => {
+                // 关闭弹窗优先
+                const modal = document.querySelector('.modal-overlay.active');
+                if (modal) { modal.remove(); return; }
+                if (canGoBack) { window.history.back(); }
+                else { App.exitApp(); }
+            });
+
+            // 启动屏幕常亮
+            await window.NativeKeepAwake.enable();
+
+            // 启动网络监听
+            await window.NativeNetwork.startListening();
+
+            // 延迟进入全屏（等开屏动画结束）
+            setTimeout(async () => {
+                await window.NativeFullscreen.enable();
+                // 给body加padding-top防止内容被状态栏遮挡
+                document.body.style.paddingTop = 'env(safe-area-inset-top)';
+            }, 2500);
+
+            console.log('[斌选] Capacitor 原生能力已加载');
+        }
+    </script>
+</head>
+<body>
+    <div id="app"></div>
+    
+    <!-- 离线提示横幅 -->
+    <div id="offlineBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:#F59E0B;color:white;text-align:center;padding:8px 16px;font-size:13px;font-weight:500;z-index:9000;align-items:center;justify-content:center;gap:6px;">
+        <span class="material-icons" style="font-size:16px;">wifi_off</span>
+        网络已断开，部分功能可能不可用
+    </div>
+    
+    <!-- 平板横屏提示 -->
+    <div id="orientationTip" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#5B5FEF;z-index:9999;align-items:center;justify-content:center;color:white;text-align:center;padding:40px;">
+        <span class="material-icons" style="font-size:64px;margin-bottom:16px;">screen_rotation</span>
+        <h2>请旋转设备</h2>
+        <p>斌选在竖屏模式下体验最佳</p>
+    </div>
+    
+    <nav class="bottom-nav" id="bottomNav">
+        <div class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+            <span class="material-icons">dashboard</span>
+            <span class="nav-label">首页</span>
+        </div>
+        <div class="nav-item" data-page="packages" onclick="navigateTo('packages')">
+            <span class="material-icons">restaurant_menu</span>
+            <span class="nav-label">套餐</span>
+        </div>
+        <div class="nav-item" data-page="dishes" onclick="navigateTo('dishes')">
+            <span class="material-icons">set_meal</span>
+            <span class="nav-label">菜品</span>
+        </div>
+        <div class="nav-item" data-page="schedule" onclick="navigateTo('schedule')">
+            <span class="material-icons">calendar_today</span>
+            <span class="nav-label">排程</span>
+        </div>
+        <div class="nav-item" data-page="customers" onclick="navigateTo('customers')">
+            <span class="material-icons">contacts</span>
+            <span class="nav-label">客户</span>
+        </div>
+    </nav>
+    
+    <div id="toastContainer"></div>
+    
+    <script src="js/data.js"></script>
+    <script src="js/ai.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
