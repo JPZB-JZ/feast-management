@@ -407,9 +407,24 @@ class DataManager {
             }
         }
 
-        this.data.dishes = sd ? JSON.parse(sd) : JSON.parse(JSON.stringify(INITIAL_DATA.dishes));
-        this.data.packages = sp ? JSON.parse(sp) : JSON.parse(JSON.stringify(INITIAL_DATA.packages));
-        this.data.orders = so ? JSON.parse(so) : JSON.parse(JSON.stringify(INITIAL_DATA.orders));
+        try {
+            this.data.dishes = sd ? JSON.parse(sd) : JSON.parse(JSON.stringify(INITIAL_DATA.dishes));
+        } catch(e) {
+            console.error('解析菜品数据失败:', e);
+            this.data.dishes = JSON.parse(JSON.stringify(INITIAL_DATA.dishes));
+        }
+        try {
+            this.data.packages = sp ? JSON.parse(sp) : JSON.parse(JSON.stringify(INITIAL_DATA.packages));
+        } catch(e) {
+            console.error('解析套餐数据失败:', e);
+            this.data.packages = JSON.parse(JSON.stringify(INITIAL_DATA.packages));
+        }
+        try {
+            this.data.orders = so ? JSON.parse(so) : JSON.parse(JSON.stringify(INITIAL_DATA.orders));
+        } catch(e) {
+            console.error('解析订单数据失败:', e);
+            this.data.orders = JSON.parse(JSON.stringify(INITIAL_DATA.orders));
+        }
         await this.saveToStorage();
         this.initialized = true;
     }

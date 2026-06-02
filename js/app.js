@@ -36,7 +36,10 @@ const utils = {
     },
     formatDateInput(date) {
         const d = new Date(date);
-        return d.toISOString().split('T')[0];
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     },
     generateId(prefix) {
         return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
@@ -131,7 +134,7 @@ async function showImageSourcePicker(mode) {
             if (base64) processNativeImage(base64, mode);
         } catch(e) {
             console.error('拍照异常:', e);
-            alert('拍照失败: ' + e.message);
+            utils.showToast('拍照失败: ' + e.message, 'error');
         }
     };
     document.getElementById('pickGallery').onclick = async () => {
@@ -143,7 +146,7 @@ async function showImageSourcePicker(mode) {
             if (base64) processNativeImage(base64, mode);
         } catch(e) {
             console.error('相册异常:', e);
-            alert('选择相册失败: ' + e.message);
+            utils.showToast('选择相册失败: ' + e.message, 'error');
         }
     };
     document.getElementById('pickCancel').onclick = () => {
@@ -717,17 +720,17 @@ const pages = {
                             <label class="form-label">席数 * <small style="color:var(--text-light);font-weight:400;">（如：8备2）</small></label>
                             <div style="display:flex;gap:12px;align-items:center;">
                                 <div style="flex:1;">
-                                    <input type="number" class="form-input" name="mainTables" required min="1" max="200" value="${appState.mainTables || 1}" placeholder="主席">
+                                    <input type="number" class="form-input" name="mainTables" required min="1" max="200" value="${appState.mainTables || 1}" placeholder="主席" oninput="updateTotalTablesDisplay(this)">
                                     <div style="font-size:11px;color:var(--text-light);margin-top:2px;">主席（确定做）</div>
                                 </div>
                                 <span style="color:var(--text-light);">备</span>
                                 <div style="flex:1;">
-                                    <input type="number" class="form-input" name="backupTables" min="0" max="50" value="${appState.backupTables || 0}" placeholder="备席">
+                                    <input type="number" class="form-input" name="backupTables" min="0" max="50" value="${appState.backupTables || 0}" placeholder="备席" oninput="updateTotalTablesDisplay(this)">
                                     <div style="font-size:11px;color:var(--text-light);margin-top:2px;">备席（预防加桌）</div>
                                 </div>
                             </div>
-                            <div style="margin-top:8px;padding:8px 12px;background:rgba(91,95,239,0.08);border-radius:8px;font-size:13px;color:var(--text-secondary);">
-                                总计：<strong style="color:var(--primary);">${(appState.mainTables || 1) + (appState.backupTables || 0)}席</strong>（按主席计费，备席食材预备）
+                            <div style="margin-top:8px;padding:8px 12px;background:rgba(196,92,72,0.08);border-radius:8px;font-size:13px;color:var(--text-secondary);">
+                                总计：<strong style="color:var(--primary);" id="customizeTotalTables">${(appState.mainTables || 1) + (appState.backupTables || 0)}席</strong>（按主席计费，备席食材预备）
                             </div>
                         </div>
                         <div class="form-group">
@@ -1014,7 +1017,7 @@ const pages = {
                                     <div style="font-size: 12px; color: var(--text-light); margin-top: 2px;">最近: ${c.lastDate || '-'}</div>
                                 </div>
                             </div>
-                            <div id="customerDetail_${idx}" style="display: none; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                            <div id="customerDetail_${idx}" style="display: none; margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;">
                                 <div style="font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">历史订单</div>
                                 ${c.orders.sort((a, b) => new Date(b.date) - new Date(a.date)).map(order => {
                                     const pkg = dataManager.getPackageById(order.packageId);
@@ -1427,6 +1430,16 @@ function changeBackupTables(delta) {
     updateCustomizeUI();
 }
 
+// 实时更新填写信息页面的席数总计
+function updateTotalTablesDisplay(input) {
+    const form = input.closest('form');
+    const main = parseInt(form.querySelector('[name="mainTables"]').value) || 0;
+    const backup = parseInt(form.querySelector('[name="backupTables"]').value) || 0;
+    const total = Math.max(1, main) + backup;
+    const el = document.getElementById('customizeTotalTables');
+    if (el) el.textContent = total + '席';
+}
+
 function goToCustomizeForm() {
     const validation = dataManager.validateFeastRules(appState.selectedDishes);
     if (!validation.valid) {
@@ -1678,7 +1691,7 @@ function aiGenerateConfirmMessage() {
     resultDiv.style.display = 'block';
     resultDiv.innerHTML = `
         <div style="margin-bottom:8px;">${message}</div>
-        <button class="btn btn-sm btn-primary" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('div').textContent);showToast('已复制到剪贴板');if(window.NativeHaptics)NativeHaptics.success();">
+        <button class="btn btn-sm btn-primary" onclick="if(navigator.clipboard){navigator.clipboard.writeText(this.parentElement.querySelector('div').textContent).then(()=>{showToast('已复制到剪贴板');if(window.NativeHaptics)NativeHaptics.success();}).catch(()=>showToast('复制失败','error'));}else{showToast('浏览器不支持复制','error');}">
             <span class="material-icons" style="font-size:14px;">content_copy</span>
             复制文案
         </button>
@@ -1829,7 +1842,7 @@ function editDish(dishId) {
                             <span>点击上传菜品图片</span>
                         </div>
                     </div>
-                    <input type="file" accept="image/*" capture="environment" id="editDishFileInput" style="display:none" onchange="handleDishImageUpload(this.files[0], 'edit')">
+                    <input type="file" accept="image/*" capture="environment" id="editDishFileInput" style="display:none" onchange="if(this.files.length>0)handleDishImageUpload(this.files[0],'edit')">
                     <div style="font-size:11px;color:var(--text-light);margin-top:4px;">支持拍照或从相册选择，图片将自动压缩</div>
                 </div>
                 <div class="form-group">
@@ -1918,7 +1931,7 @@ function showAddDishModal() {
                             <span>点击上传菜品图片</span>
                         </div>
                     </div>
-                    <input type="file" accept="image/*" capture="environment" id="addDishFileInput" style="display:none" onchange="handleDishImageUpload(this.files[0], 'add')">
+                    <input type="file" accept="image/*" capture="environment" id="addDishFileInput" style="display:none" onchange="if(this.files.length>0)handleDishImageUpload(this.files[0],'add')">
                     <div style="font-size:11px;color:var(--text-light);margin-top:4px;">支持拍照或从相册选择，图片将自动压缩</div>
                 </div>
                 <div class="form-group">
@@ -2620,8 +2633,8 @@ function showMenuCard(orderId) {
     // 渲染菜品列表
     function renderDishList(dishes, maxCount) {
         const items = dishes.slice(0, maxCount);
-        if (items.length === 0) return '<div style="color:#B8956A;opacity:0.5;font-size:13px;text-align:center;padding:8px 0;">—</div>';
-        return items.map(d => `<div style="font-size:14px;color:#8B6B3D;padding:5px 0;text-align:center;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.name}</div>`).join('');
+        if (items.length === 0) return '<div style="color:#E8C88A;opacity:0.5;font-size:15px;text-align:center;padding:8px 0;">—</div>';
+        return items.map(d => `<div style="font-size:16px;font-weight:600;color:#F0D48A;padding:5px 0;text-align:center;letter-spacing:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.name}</div>`).join('');
     }
 
     const modal = document.createElement('div');
@@ -2648,7 +2661,7 @@ function showMenuCard(orderId) {
                 <div style="
                     position: absolute;
                     top: 12px; left: 12px; right: 12px; bottom: 12px;
-                    border: 2px solid rgba(212,165,116,0.4);
+                    border: 2px solid rgba(240,212,138,0.5);
                     border-radius: 12px;
                     pointer-events: none;
                 "></div>
@@ -2660,8 +2673,8 @@ function showMenuCard(orderId) {
 
                 <!-- 宴席信息 -->
                 <div style="text-align: center; padding: 0 20px 16px;">
-                    <div style="font-size: 13px; color: #D4A574; letter-spacing: 2px; opacity: 0.9;">${order.customerName || '客户'} · ${dateStr}</div>
-                    <div style="font-size: 15px; color: #FFF; font-weight: 600; margin-top: 4px; letter-spacing: 1px;">${totalTables} 席宴席</div>
+                    <div style="font-size: 14px; color: #F0D48A; font-weight: 600; letter-spacing: 2px;">${order.customerName || '客户'} · ${dateStr}</div>
+                    <div style="font-size: 17px; color: #FFF; font-weight: 700; margin-top: 4px; letter-spacing: 1px;">${totalTables} 席宴席</div>
                 </div>
 
                 <!-- 菜品区域 -->
@@ -2669,9 +2682,9 @@ function showMenuCard(orderId) {
                     <!-- 凉菜 -->
                     <div style="margin-bottom: 16px;">
                         <div style="text-align: center; margin-bottom: 8px;">
-                            <span style="font-size: 12px; color: #D4A574; letter-spacing: 4px; opacity: 0.8;">—— 凉 菜 ——</span>
+                            <span style="font-size: 13px; color: #F0D48A; font-weight: 700; letter-spacing: 4px;">—— 凉 菜 ——</span>
                         </div>
-                        <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px; border: 1px solid rgba(212,165,116,0.15);">
+                        <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px; border: 1px solid rgba(240,212,138,0.2);">
                             ${renderDishList(coldDishes, 8)}
                         </div>
                     </div>
@@ -2679,9 +2692,9 @@ function showMenuCard(orderId) {
                     <!-- 热菜 -->
                     <div style="margin-bottom: 16px;">
                         <div style="text-align: center; margin-bottom: 8px;">
-                            <span style="font-size: 12px; color: #D4A574; letter-spacing: 4px; opacity: 0.8;">—— 热 菜 ——</span>
+                            <span style="font-size: 13px; color: #F0D48A; font-weight: 700; letter-spacing: 4px;">—— 热 菜 ——</span>
                         </div>
-                        <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px; border: 1px solid rgba(212,165,116,0.15);">
+                        <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px; border: 1px solid rgba(240,212,138,0.2);">
                             ${renderDishList(hotDishes, 12)}
                         </div>
                     </div>
@@ -2689,9 +2702,9 @@ function showMenuCard(orderId) {
                     <!-- 汤品 -->
                     <div style="margin-bottom: 16px;">
                         <div style="text-align: center; margin-bottom: 8px;">
-                            <span style="font-size: 12px; color: #D4A574; letter-spacing: 4px; opacity: 0.8;">—— 汤 品 ——</span>
+                            <span style="font-size: 13px; color: #F0D48A; font-weight: 700; letter-spacing: 4px;">—— 汤 品 ——</span>
                         </div>
-                        <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px; border: 1px solid rgba(212,165,116,0.15);">
+                        <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px; border: 1px solid rgba(240,212,138,0.2);">
                             ${renderDishList([...soupDishes, ...otherDishes], 4)}
                         </div>
                     </div>
@@ -2699,10 +2712,10 @@ function showMenuCard(orderId) {
 
                 <!-- 底部信息 -->
                 <div style="text-align: center; padding: 0 20px 24px;">
-                    <div style="width: 60px; height: 1px; background: rgba(212,165,116,0.4); margin: 0 auto 12px;"></div>
-                    <div style="font-size: 12px; color: #D4A574; letter-spacing: 1px; opacity: 0.9;">厨师：${APP_CONFIG.chefName}</div>
-                    <div style="font-size: 14px; color: #FFF; font-weight: 600; margin-top: 6px; letter-spacing: 2px;">${APP_CONFIG.phone}</div>
-                    <div style="font-size: 11px; color: #D4A574; opacity: 0.6; margin-top: 8px; letter-spacing: 1px;">${APP_CONFIG.slogan}</div>
+                    <div style="width: 60px; height: 1px; background: rgba(240,212,138,0.5); margin: 0 auto 12px;"></div>
+                    <div style="font-size: 13px; color: #F0D48A; font-weight: 600; letter-spacing: 1px;">厨师：${APP_CONFIG.chefName}</div>
+                    <div style="font-size: 16px; color: #FFF; font-weight: 700; margin-top: 6px; letter-spacing: 2px;">${APP_CONFIG.phone}</div>
+                    <div style="font-size: 12px; color: #F0D48A; font-weight: 600; opacity: 0.8; margin-top: 8px; letter-spacing: 1px;">${APP_CONFIG.slogan}</div>
                 </div>
             </div>
 
