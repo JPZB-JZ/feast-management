@@ -1630,54 +1630,26 @@ function updateCustomizeUI() {
         }
     });
 
-    // 更新底部浮动栏
+    // 更新底部浮动栏（分步流程：无席数选择）
     const submitBar = document.querySelector('.submit-bar');
     if (submitBar) {
-        submitBar.classList.toggle('submit-bar-ready', validation.valid);
-        const minTotal = FEAST_RULES.MIN_COLD + FEAST_RULES.MIN_HOT + FEAST_RULES.MIN_SOUP;
-        const progressPct = Math.min(100, (appState.selectedDishes.length / minTotal) * 100);
+        const canProceed = (appState.customizeStep === 1 && validation.cold >= FEAST_RULES.MIN_COLD) ||
+                          (appState.customizeStep === 2 && validation.hot >= FEAST_RULES.MIN_HOT) ||
+                          (appState.customizeStep === 3 && validation.soup >= FEAST_RULES.MIN_SOUP);
         submitBar.innerHTML = `
-            <div class="submit-bar-top">
-                <div class="submit-progress">
-                    <div class="submit-progress-bar" style="width: ${progressPct}%"></div>
+            <div class="submit-bar-body" style="justify-content: space-between;">
+                <button class="btn btn-secondary" onclick="prevCustomizeStep()" ${appState.customizeStep === 1 ? 'style="opacity: 0.5; pointer-events: none;"' : ''}>
+                    <span class="material-icons">arrow_back</span>
+                    上一步
+                </button>
+                <div style="text-align: center;">
+                    <div style="font-size:12px;color:var(--text-light);">已选 ${appState.selectedDishes.length} 道</div>
+                    <div style="font-size:16px;font-weight:600;color:var(--price);">${utils.formatPrice(totalPrice)}/席</div>
                 </div>
-                <div class="submit-bar-counts">
-                    <span class="submit-count ${validation.cold >= FEAST_RULES.MIN_COLD ? 'pass' : 'fail'}">凉${validation.cold}/${FEAST_RULES.MIN_COLD}</span>
-                    <span class="submit-count ${validation.hot >= FEAST_RULES.MIN_HOT ? 'pass' : 'fail'}">热${validation.hot}/${FEAST_RULES.MIN_HOT}</span>
-                    <span class="submit-count ${validation.soup >= FEAST_RULES.MIN_SOUP ? 'pass' : 'fail'}">汤${validation.soup}/${FEAST_RULES.MIN_SOUP}</span>
-                </div>
-            </div>
-            <div class="submit-bar-body">
-                <div class="submit-bar-left">
-                    <div class="submit-bar-table">
-                        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-                            <div style="font-size:10px;color:var(--text-light);">主席</div>
-                            <div style="display:flex;align-items:center;">
-                                <button class="table-btn" onclick="changeMainTables(-1)"><span class="material-icons" style="font-size:16px;">remove</span></button>
-                                <span class="table-count">${appState.mainTables}</span>
-                                <button class="table-btn" onclick="changeMainTables(1)"><span class="material-icons" style="font-size:16px;">add</span></button>
-                            </div>
-                        </div>
-                        <div style="width:1px;height:30px;background:var(--border);margin:0 8px;"></div>
-                        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-                            <div style="font-size:10px;color:var(--text-light);">备席</div>
-                            <div style="display:flex;align-items:center;">
-                                <button class="table-btn" onclick="changeBackupTables(-1)"><span class="material-icons" style="font-size:16px;">remove</span></button>
-                                <span class="table-count">${appState.backupTables}</span>
-                                <button class="table-btn" onclick="changeBackupTables(1)"><span class="material-icons" style="font-size:16px;">add</span></button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="submit-bar-right">
-                    <div class="submit-bar-summary">
-                        <span class="submit-bar-total">每席${utils.formatPrice(totalPrice)}</span>
-                        <span class="submit-bar-price">合计${utils.formatPrice(totalPrice * appState.mainTables)}</span>
-                    </div>
-                    <button class="btn ${validation.valid ? 'btn-primary' : 'btn-secondary'}" onclick="goToCustomizeForm()">
-                        ${validation.valid ? '填写信息' : '下一步'}
-                    </button>
-                </div>
+                <button class="btn ${canProceed ? 'btn-primary' : 'btn-secondary'}" onclick="nextCustomizeStep()">
+                    ${appState.customizeStep === 3 ? '确认套餐' : '下一步'}
+                    <span class="material-icons">arrow_forward</span>
+                </button>
             </div>
         `;
     }
