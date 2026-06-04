@@ -365,6 +365,56 @@ body {
 .table-count { min-width: 40px; text-align: center; font-size: 15px; font-weight: 700; color: var(--text-primary); line-height: 32px; }
 .table-count small { font-size: 11px; font-weight: 400; color: var(--text-light); margin-left: 1px; }
 
+/* 分步进度条 */
+.step-progress {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: var(--spacing-md);
+    background: var(--surface);
+    border-radius: var(--radius-card);
+    margin-bottom: var(--spacing-md);
+    box-shadow: 0 2px 8px var(--shadow);
+}
+.step-item {
+    display: flex; flex-direction: column; align-items: center;
+    flex: 1;
+}
+.step-dot {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600;
+    color: var(--text-light);
+    transition: all 0.3s ease;
+}
+.step-dot .material-icons { font-size: 16px; }
+.step-item.completed .step-dot {
+    background: var(--success);
+    color: white;
+}
+.step-item.active .step-dot {
+    background: var(--primary);
+    color: white;
+    transform: scale(1.1);
+}
+.step-label {
+    font-size: 12px; color: var(--text-light);
+    margin-top: 6px;
+    transition: color 0.3s ease;
+}
+.step-item.completed .step-label,
+.step-item.active .step-label {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+.step-line {
+    flex: 1; height: 2px; background: var(--border);
+    margin: 0 4px;
+    transition: background 0.3s ease;
+}
+.step-line.completed {
+    background: var(--success);
+}
+
 /* 规则提示条 */
 .rule-tip {
     background: rgba(201, 168, 108, 0.1); border: 1px solid rgba(201, 168, 108, 0.25);

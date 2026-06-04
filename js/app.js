@@ -16,7 +16,7 @@ const appState = {
     editingPackage: null,
     // 选菜定制状态
     selectedDishes: [],   // 当前已选菜品ID数组
-    customizeStep: 1,     // 1=选菜, 2=填信息
+    customizeStep: 1,     // 定制步骤: 1=选凉菜, 2=选热菜, 3=选汤品, 4=确认套餐, 5=填信息
     mainTables: 1,        // 主席数
     backupTables: 0       // 备席数
 };
@@ -488,7 +488,7 @@ const pages = {
         `;
     },
 
-    // ---------- 定制选菜页面 ----------
+    // ---------- 定制选菜页面（分步流程）----------
     customize() {
         const allDishes = dataManager.getDishes();
         const hotDishes = allDishes.filter(d => d.category === '热菜');
@@ -498,11 +498,14 @@ const pages = {
         const validation = dataManager.validateFeastRules(appState.selectedDishes);
         const totalPrice = dataManager.calcTotalPrice(appState.selectedDishes);
 
+        const stepTitles = ['', '选择凉菜', '选择热菜', '选择汤品'];
+        const stepDesc = ['', `请选择${FEAST_RULES.MIN_COLD}道以上凉菜`, `请选择${FEAST_RULES.MIN_HOT}道以上热菜`, `请选择${FEAST_RULES.MIN_SOUP}道以上汤品`];
+
         const renderDishCard = (dish, dishIndex) => {
             const isSelected = appState.selectedDishes.includes(dish.id);
             return `
                 <div class="dish-select-card ${isSelected ? 'selected' : ''}" data-dish-id="${dish.id}" onclick="toggleDish('${dish.id}')">
-                    <div class="dish-select-image-wrapper" onclick="event.stopPropagation(); showDishDetail('${dish.id}')" style="cursor: pointer;">
+                    <div class="dish-select-image-wrapper">
                         <img data-dish-id="${dish.id}" data-dish-name="${dish.name}" data-dish-index="${dishIndex}" alt="${dish.name}" class="dish-select-image" loading="lazy" src="https://picsum.photos/id/404/400/300" onerror="this.src='https://picsum.photos/id/404/400/300'">
                         <div class="dish-select-check">
                             ${isSelected ? '<span class="material-icons" style="font-size:20px;color:white;">check</span>' : '<span class="material-icons" style="font-size:16px;color:white;opacity:0.7;">visibility</span>'}
@@ -517,32 +520,61 @@ const pages = {
             `;
         };
 
-        return `
-            <div class="page" style="padding-bottom: 160px;">
-                <h1 class="page-title">定制选菜</h1>
-                <p class="page-subtitle">请选择菜品，满足十凉八热规则（凉菜≥${FEAST_RULES.MIN_COLD}，热菜≥${FEAST_RULES.MIN_HOT}，汤品≥${FEAST_RULES.MIN_SOUP}）</p>
+        const renderProgressBar = () => {
+            const steps = [
+                { step: 1, label: '凉菜', completed: appState.customizeStep > 1, active: appState.customizeStep === 1 },
+                { step: 2, label: '热菜', completed: appState.customizeStep > 2, active: appState.customizeStep === 2 },
+                { step: 3, label: '汤品', completed: appState.customizeStep > 3, active: appState.customizeStep === 3 },
+                { step: 4, label: '确认', completed: appState.customizeStep > 4, active: appState.customizeStep === 4 },
+            ];
+            return `
+                <div class="step-progress">
+                    ${steps.map((s, i) => `
+                        <div class="step-item ${s.completed ? 'completed' : ''} ${s.active ? 'active' : ''}">
+                            <div class="step-dot">${s.completed ? '<span class="material-icons">check</span>' : s.step}</div>
+                            <div class="step-label">${s.label}</div>
+                        </div>
+                        ${i < steps.length - 1 ? `<div class="step-line ${s.completed ? 'completed' : ''}"></div>` : ''}
+                    `).join('')}
+                </div>
+            `;
+        };
 
-                <!-- 实时统计卡片 -->
+        const canProceed = () => {
+            if (appState.customizeStep === 1) return validation.cold >= FEAST_RULES.MIN_COLD;
+            if (appState.customizeStep === 2) return validation.hot >= FEAST_RULES.MIN_HOT;
+            if (appState.customizeStep === 3) return validation.soup >= FEAST_RULES.MIN_SOUP;
+            return true;
+        };
+
+        const showSection = (category) => {
+            const sectionMap = { '凉菜': 1, '热菜': 2, '汤品': 3 };
+            return appState.customizeStep >= sectionMap[category];
+        };
+
+        return `
+            <div class="page" style="padding-bottom: 120px;">
+                <h1 class="page-title">定制套餐</h1>
+                <p class="page-subtitle">${stepDesc[appState.customizeStep]}</p>
+
+                ${renderProgressBar()}
+
+                <!-- 当前步骤统计 -->
                 <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, var(--surface) 0%, rgba(196,92,72,0.1) 100%);">
                     <div style="display: flex; justify-content: space-around; padding: 12px 0;">
                         <div style="text-align: center;">
-                            <div style="font-size: 24px; font-weight: 700; color: ${validation.cold >= FEAST_RULES.MIN_COLD ? 'var(--success)' : 'var(--text-primary)'};">${validation.cold}</div>
+                            <div style="font-size: 24px; font-weight: 700; color: ${validation.cold >= FEAST_RULES.MIN_COLD ? 'var(--success)' : (appState.customizeStep === 1 ? 'var(--text-primary)' : 'var(--text-light)')};">${validation.cold}</div>
                             <div style="font-size: 12px; color: var(--text-light);">凉菜 (≥${FEAST_RULES.MIN_COLD})</div>
                         </div>
                         <div style="text-align: center;">
-                            <div style="font-size: 24px; font-weight: 700; color: ${validation.hot >= FEAST_RULES.MIN_HOT ? 'var(--success)' : 'var(--text-primary)'};">${validation.hot}</div>
+                            <div style="font-size: 24px; font-weight: 700; color: ${validation.hot >= FEAST_RULES.MIN_HOT ? 'var(--success)' : (appState.customizeStep >= 2 ? 'var(--text-primary)' : 'var(--text-light)')};">${validation.hot}</div>
                             <div style="font-size: 12px; color: var(--text-light);">热菜 (≥${FEAST_RULES.MIN_HOT})</div>
                         </div>
                         <div style="text-align: center;">
-                            <div style="font-size: 24px; font-weight: 700; color: ${validation.soup >= FEAST_RULES.MIN_SOUP ? 'var(--success)' : 'var(--text-primary)'};">${validation.soup}</div>
+                            <div style="font-size: 24px; font-weight: 700; color: ${validation.soup >= FEAST_RULES.MIN_SOUP ? 'var(--success)' : (appState.customizeStep >= 3 ? 'var(--text-primary)' : 'var(--text-light)')};">${validation.soup}</div>
                             <div style="font-size: 12px; color: var(--text-light);">汤品 (≥${FEAST_RULES.MIN_SOUP})</div>
                         </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 24px; font-weight: 700; color: var(--price);">${utils.formatPrice(totalPrice)}</div>
-                            <div style="font-size: 12px; color: var(--text-light);">每席</div>
-                        </div>
                     </div>
-                    ${!validation.valid ? `<div style="text-align: center; font-size: 13px; color: var(--warning); padding-top: 8px; border-top: 1px solid var(--border);">⚠️ 还差：${validation.cold < FEAST_RULES.MIN_COLD ? `凉菜${FEAST_RULES.MIN_COLD - validation.cold}道 ` : ''}${validation.hot < FEAST_RULES.MIN_HOT ? `热菜${FEAST_RULES.MIN_HOT - validation.hot}道 ` : ''}${validation.soup < FEAST_RULES.MIN_SOUP ? `汤品${FEAST_RULES.MIN_SOUP - validation.soup}道` : ''}</div>` : `<div style="text-align: center; font-size: 13px; color: var(--success); padding-top: 8px; border-top: 1px solid var(--border);">✓ 已满足最低要求，可继续添加菜品</div>`}
                 </div>
 
                 <!-- 搜索框 -->
@@ -554,6 +586,7 @@ const pages = {
                 </div>
 
                 <!-- 凉菜区 -->
+                ${showSection('凉菜') ? `
                 <div class="dish-select-section">
                     <div class="section-header">
                         <span class="section-title"><span class="material-icons" style="color:var(--info);">ac_unit</span> 凉菜</span>
@@ -563,8 +596,10 @@ const pages = {
                         ${coldDishes.map(renderDishCard).join('')}
                     </div>
                 </div>
+                ` : ''}
 
                 <!-- 热菜区 -->
+                ${showSection('热菜') ? `
                 <div class="dish-select-section">
                     <div class="section-header">
                         <span class="section-title"><span class="material-icons" style="color:var(--price);">local_fire_department</span> 热菜</span>
@@ -574,8 +609,10 @@ const pages = {
                         ${hotDishes.map(renderDishCard).join('')}
                     </div>
                 </div>
+                ` : ''}
 
                 <!-- 汤品区 -->
+                ${showSection('汤品') ? `
                 <div class="dish-select-section">
                     <div class="section-header">
                         <span class="section-title"><span class="material-icons" style="color:var(--warning);">soup_kitchen</span> 汤品</span>
@@ -585,51 +622,133 @@ const pages = {
                         ${soupDishes.map(renderDishCard).join('')}
                     </div>
                 </div>
+                ` : ''}
 
-                <!-- 底部浮动栏（进度+计数+席数+提交） -->
-                <div class="submit-bar ${validation.valid ? 'submit-bar-ready' : ''}">
-                    <div class="submit-bar-top">
-                        <div class="submit-progress">
-                            <div class="submit-progress-bar" style="width: ${Math.min(100, (appState.selectedDishes.length / (FEAST_RULES.MIN_COLD + FEAST_RULES.MIN_HOT + FEAST_RULES.MIN_SOUP)) * 100)}%"></div>
+                <!-- 底部操作栏 -->
+                <div class="submit-bar">
+                    <div class="submit-bar-body" style="justify-content: space-between;">
+                        <button class="btn btn-secondary" onclick="prevCustomizeStep()" ${appState.customizeStep === 1 ? 'style="opacity: 0.5; pointer-events: none;"' : ''}>
+                            <span class="material-icons">arrow_back</span>
+                            上一步
+                        </button>
+                        <div style="text-align: center;">
+                            <div style="font-size:12px;color:var(--text-light);">已选 ${appState.selectedDishes.length} 道</div>
+                            <div style="font-size:16px;font-weight:600;color:var(--price);">${utils.formatPrice(totalPrice)}/席</div>
                         </div>
-                        <div class="submit-bar-counts">
-                            <span class="submit-count ${validation.cold >= FEAST_RULES.MIN_COLD ? 'pass' : 'fail'}">凉${validation.cold}/${FEAST_RULES.MIN_COLD}</span>
-                            <span class="submit-count ${validation.hot >= FEAST_RULES.MIN_HOT ? 'pass' : 'fail'}">热${validation.hot}/${FEAST_RULES.MIN_HOT}</span>
-                            <span class="submit-count ${validation.soup >= FEAST_RULES.MIN_SOUP ? 'pass' : 'fail'}">汤${validation.soup}/${FEAST_RULES.MIN_SOUP}</span>
+                        <button class="btn ${canProceed() ? 'btn-primary' : 'btn-secondary'}" onclick="nextCustomizeStep()">
+                            ${appState.customizeStep === 3 ? '确认套餐' : '下一步'}
+                            <span class="material-icons">arrow_forward</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    // ---------- 确认套餐页面 ----------
+    customizeConfirm() {
+        const perTablePrice = dataManager.calcTotalPrice(appState.selectedDishes);
+        const selectedDishes = appState.selectedDishes.map(id => dataManager.getDishById(id)).filter(Boolean);
+        const coldDishes = selectedDishes.filter(d => d.category === '凉菜');
+        const hotDishes = selectedDishes.filter(d => d.category === '热菜');
+        const soupDishes = selectedDishes.filter(d => d.category === '汤品');
+
+        return `
+            <div class="page">
+                <h1 class="page-title">确认套餐</h1>
+                <p class="page-subtitle">确认所选菜品并设置席数</p>
+
+                <!-- 进度条 -->
+                <div class="step-progress">
+                    <div class="step-item completed"><div class="step-dot"><span class="material-icons">check</span></div><div class="step-label">凉菜</div></div>
+                    <div class="step-line completed"></div>
+                    <div class="step-item completed"><div class="step-dot"><span class="material-icons">check</span></div><div class="step-label">热菜</div></div>
+                    <div class="step-line completed"></div>
+                    <div class="step-item completed"><div class="step-dot"><span class="material-icons">check</span></div><div class="step-label">汤品</div></div>
+                    <div class="step-line completed"></div>
+                    <div class="step-item active"><div class="step-dot">4</div><div class="step-label">确认</div></div>
+                </div>
+
+                <!-- 菜品清单 -->
+                <div class="card">
+                    <h3 class="card-title mb-md">菜品清单（${selectedDishes.length}道）</h3>
+                    
+                    ${coldDishes.length > 0 ? `
+                    <div style="margin-bottom:10px;">
+                        <div style="font-size:12px;color:var(--text-light);margin-bottom:4px;">凉菜（${coldDishes.length}道）</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                            ${coldDishes.map(d => `<span class="category-chip">${d.name} ${utils.formatPrice(d.price)}</span>`).join('')}
                         </div>
                     </div>
-                    <div class="submit-bar-body">
-                        <div class="submit-bar-left">
-                            <div class="submit-bar-table">
-                                <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-                                    <div style="font-size:10px;color:var(--text-light);">主席</div>
-                                    <div style="display:flex;align-items:center;">
-                                        <button class="table-btn" onclick="changeMainTables(-1)"><span class="material-icons" style="font-size:16px;">remove</span></button>
-                                        <span class="table-count">${appState.mainTables}</span>
-                                        <button class="table-btn" onclick="changeMainTables(1)"><span class="material-icons" style="font-size:16px;">add</span></button>
-                                    </div>
-                                </div>
-                                <div style="width:1px;height:30px;background:var(--border);margin:0 8px;"></div>
-                                <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-                                    <div style="font-size:10px;color:var(--text-light);">备席</div>
-                                    <div style="display:flex;align-items:center;">
-                                        <button class="table-btn" onclick="changeBackupTables(-1)"><span class="material-icons" style="font-size:16px;">remove</span></button>
-                                        <span class="table-count">${appState.backupTables}</span>
-                                        <button class="table-btn" onclick="changeBackupTables(1)"><span class="material-icons" style="font-size:16px;">add</span></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="submit-bar-right">
-                            <div class="submit-bar-summary">
-                                <span class="submit-bar-total">每席${utils.formatPrice(totalPrice)}</span>
-                                <span class="submit-bar-price">合计${utils.formatPrice(totalPrice * appState.mainTables)}</span>
-                            </div>
-                            <button class="btn ${validation.valid ? 'btn-primary' : 'btn-secondary'}" onclick="goToCustomizeForm()">
-                                ${validation.valid ? '填写信息' : '下一步'}
-                            </button>
+                    ` : ''}
+                    
+                    ${hotDishes.length > 0 ? `
+                    <div style="margin-bottom:10px;">
+                        <div style="font-size:12px;color:var(--text-light);margin-bottom:4px;">热菜（${hotDishes.length}道）</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                            ${hotDishes.map(d => `<span class="category-chip">${d.name} ${utils.formatPrice(d.price)}</span>`).join('')}
                         </div>
                     </div>
+                    ` : ''}
+                    
+                    ${soupDishes.length > 0 ? `
+                    <div style="margin-bottom:10px;">
+                        <div style="font-size:12px;color:var(--text-light);margin-bottom:4px;">汤品（${soupDishes.length}道）</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                            ${soupDishes.map(d => `<span class="category-chip">${d.name} ${utils.formatPrice(d.price)}</span>`).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:2px solid var(--border);">
+                        <span style="font-size:14px;color:var(--text-secondary);">每席价格</span>
+                        <span style="font-size:20px;font-weight:700;color:var(--price);">${utils.formatPrice(perTablePrice)}</span>
+                    </div>
+                </div>
+
+                <!-- 席数设置 -->
+                <div class="card">
+                    <h3 class="card-title mb-md">设置席数</h3>
+                    <div style="display:flex;justify-content:space-around;align-items:center;padding:20px 0;">
+                        <div style="text-align:center;">
+                            <div style="font-size:12px;color:var(--text-light);margin-bottom:8px;">主席</div>
+                            <div style="display:flex;align-items:center;gap:16px;">
+                                <button class="btn btn-secondary" onclick="changeMainTables(-1)" style="width:48px;height:48px;border-radius:50%;"><span class="material-icons" style="font-size:20px;">remove</span></button>
+                                <span style="font-size:32px;font-weight:700;color:var(--text-primary);min-width:60px;text-align:center;">${appState.mainTables}</span>
+                                <button class="btn btn-secondary" onclick="changeMainTables(1)" style="width:48px;height:48px;border-radius:50%;"><span class="material-icons" style="font-size:20px;">add</span></button>
+                            </div>
+                            <div style="font-size:11px;color:var(--text-light);margin-top:8px;">确定要做的席数</div>
+                        </div>
+                        <div style="width:1px;height:60px;background:var(--border);"></div>
+                        <div style="text-align:center;">
+                            <div style="font-size:12px;color:var(--text-light);margin-bottom:8px;">备席</div>
+                            <div style="display:flex;align-items:center;gap:16px;">
+                                <button class="btn btn-secondary" onclick="changeBackupTables(-1)" style="width:48px;height:48px;border-radius:50%;"><span class="material-icons" style="font-size:20px;">remove</span></button>
+                                <span style="font-size:32px;font-weight:700;color:var(--text-primary);min-width:60px;text-align:center;">${appState.backupTables}</span>
+                                <button class="btn btn-secondary" onclick="changeBackupTables(1)" style="width:48px;height:48px;border-radius:50%;"><span class="material-icons" style="font-size:20px;">add</span></button>
+                            </div>
+                            <div style="font-size:11px;color:var(--text-light);margin-top:8px;">预防加桌预备</div>
+                        </div>
+                    </div>
+                    <div style="padding:12px;background:rgba(196,92,72,0.08);border-radius:8px;text-align:center;">
+                        <span style="font-size:14px;color:var(--text-secondary);">总计：</span>
+                        <span style="font-size:24px;font-weight:700;color:var(--price);">${appState.mainTables + appState.backupTables}席</span>
+                        <span style="font-size:14px;color:var(--text-secondary);">（按主席${appState.mainTables}席计费）</span>
+                    </div>
+                </div>
+
+                <!-- 订单金额预览 -->
+                <div class="card" style="background: linear-gradient(135deg, rgba(91,95,239,0.1) 0%, rgba(196,92,72,0.1) 100%);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;">
+                        <span style="font-size:16px;color:var(--text-secondary);">订单金额</span>
+                        <span style="font-size:28px;font-weight:700;color:var(--price);">${utils.formatPrice(perTablePrice * appState.mainTables)}</span>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div style="display:flex;gap:12px;">
+                    <button class="btn btn-secondary btn-block" onclick="appState.customizeStep=3;navigateTo('customize')">返回修改菜品</button>
+                    <button class="btn btn-primary btn-block" onclick="goToCustomizeForm()">填写客户信息</button>
                 </div>
             </div>
         `;
@@ -1308,9 +1427,10 @@ function selectPackage(packageId) {
 }
 
 function startCustomize() {
-    // 定制套餐：从空开始选菜
+    // 定制套餐：从空开始选菜，第一步选凉菜
     appState.selectedPackage = null;
     appState.selectedDishes = [];
+    appState.customizeStep = 1;
     appState.mainTables = 1;
     appState.backupTables = 0;
     navigateTo('customize');
@@ -1441,17 +1561,57 @@ function updateTotalTablesDisplay(input) {
 }
 
 function goToCustomizeForm() {
-    const validation = dataManager.validateFeastRules(appState.selectedDishes);
-    if (!validation.valid) {
-        customAlert({
-            title: '选菜未满足要求',
-            message: validation.errors.join('<br>'),
-            type: 'warning',
-            confirmText: '继续选菜'
-        });
-        return;
-    }
+    appState.customizeStep = 5;
     navigateTo('customizeForm');
+}
+
+function nextCustomizeStep() {
+    const validation = dataManager.validateFeastRules(appState.selectedDishes);
+    
+    if (appState.customizeStep === 1) {
+        if (validation.cold < FEAST_RULES.MIN_COLD) {
+            customAlert({
+                title: '凉菜未选够',
+                message: `请至少选择${FEAST_RULES.MIN_COLD}道凉菜`,
+                type: 'warning',
+                confirmText: '继续选择'
+            });
+            return;
+        }
+        appState.customizeStep = 2;
+        navigateTo('customize');
+    } else if (appState.customizeStep === 2) {
+        if (validation.hot < FEAST_RULES.MIN_HOT) {
+            customAlert({
+                title: '热菜未选够',
+                message: `请至少选择${FEAST_RULES.MIN_HOT}道热菜`,
+                type: 'warning',
+                confirmText: '继续选择'
+            });
+            return;
+        }
+        appState.customizeStep = 3;
+        navigateTo('customize');
+    } else if (appState.customizeStep === 3) {
+        if (validation.soup < FEAST_RULES.MIN_SOUP) {
+            customAlert({
+                title: '汤品未选够',
+                message: `请至少选择${FEAST_RULES.MIN_SOUP}道汤品`,
+                type: 'warning',
+                confirmText: '继续选择'
+            });
+            return;
+        }
+        appState.customizeStep = 4;
+        navigateTo('customizeConfirm');
+    }
+}
+
+function prevCustomizeStep() {
+    if (appState.customizeStep > 1) {
+        appState.customizeStep--;
+        navigateTo('customize');
+    }
 }
 
 // 局部更新选菜页面UI（避免全页刷新）
